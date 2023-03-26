@@ -47,7 +47,7 @@ Start the server
 yarn serve
 ```
 
-To sart the Pocketbase server, open a new terminal window and run
+To start the Pocketbase server, open a new terminal window and run
 
 ``` 
 mv node_modules node_modules~ && ./pocketbase serve && mv node_modules~ node_modules
