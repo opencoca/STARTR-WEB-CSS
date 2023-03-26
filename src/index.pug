@@ -1,0 +1,348 @@
+header
+  img(src='https://source.unsplash.com/random/901x200/?example', alt='Example Image', style=' --w:100% ')
+
+script(src='//unpkg.com/alpinejs' defer='')
+.container(x-data='lists' style='--m:1em')
+  nav
+    ul
+      li
+        h1(@click='selectedList = null' style='margin:0; text-align: center; cursor: pointer') ToDoo
+      li
+        i.bx.bx-log-out.bx-md(x-show='!showLogin' @click='logout()' style='cursor: pointer')
+  // login / signup
+  article.wow.animate__fadeIn(x-show='showLogin')
+    h2 Login
+    form
+      label(for='email') Email
+      input#email(x-model='email' type='email' autocomplete='username' placeholder='Email address')
+      label(for='password') Password
+      input#password(x-model='password' type='password' autocomplete='current-password' placeholder='Password')
+      button.contrast.outline(@click='login()' type='button') Login
+      mark(x-show='loginMessage' x-text='loginMessage')
+      hr(style='margin: 4rem;')
+    h2 Signup
+    form
+      label(for='email') Email
+      input#signup_email(x-model='email' type='email'  autocomplete='username' placeholder='Email address')
+      label(for='password') Password
+      input#signup_password(x-model='password' type='password' placeholder='Password' autocomplete='new-password')
+      label(for='passwordConfirm') Confirm Password
+      input#signup_passwordConfirm(x-model='passwordConfirm' type='password' placeholder='Confirm Password' autocomplete='new-password')
+      button.contrast.outline(@click='signup()' type='button') Signup
+      mark(x-show='signupMessage' x-text='signupMessage')
+
+  // show lists
+  article.wow.animate__fadeIn(x-show='!showLogin && !selectedList' x-transition='')
+    h2 Your Lists
+    template(x-for='list in lists')
+      div(style='display:flex; justify-content: space-between; margin-top: 1rem')
+        u
+          strong(x-text='list.name' @click='selectList(list)' style='cursor: pointer;')
+        i.bx.bx-trash.bx-sm(@click='deleteList(list)' style='text-align: end; cursor: pointer')
+    hr(style='margin: 2rem')
+    label(for='newList') Create New List
+    input#newList(x-model='newListName' type='newList' placeholder='List Name' @keyup.enter='createList')
+    button.contrast.outline(@click='createList') Create
+
+  // show selectedList items
+  article.wow.animate__fadeIn(x-show='!showLogin && selectedList' x-transition='')
+    h2(x-text='selectedList.name') Test
+    template(x-for='item in items')
+      div(style='display:flex; justify-content: space-between; margin-top: 1rem' x-show='item.text')
+        label(for='check')
+          input#check(x-model='item.done' @change='e => toggleDone(item, e.target.checked)' type='checkbox')
+          strong(x-text='item.text')
+        i.bx.bx-trash.bx-sm(@click='deleteItem(item)' style='text-align: end; cursor: pointer')
+    hr(style='margin: 2rem')
+    label(for='newItem') Create New Item
+    input#newItem(x-model='newItem' type='newItem' placeholder='What do you want to ToDoo?' @keyup.enter='createItem')
+    button.contrast.outline(@click='createItem') Create
+    hr(style='margin: 1rem;')
+    button.primary.outline(@click='selectedList = null') Back
+
+script.
+  document.addEventListener('alpine:init', () => {
+  Alpine.data('lists', () => ({
+    // pocketbase client
+    client: null,
+    // login / signup
+    showLogin: false,
+    email: null,
+    password: null,
+    passwordConfirm: null,
+    loginMessage: null,
+    signupMessage: null,
+    // lists data
+    lists: [],
+    newListName: '',
+    selectedList: false,
+    // items data
+    items: null,
+    newItem: null,
+    async init () {
+    // initialize pocketbase
+      this.pb = new PocketBase('http://localhost:8090/');
+      // capture invalid token
+      this.pb.afterSend = function (response, data) {
+        console.log(response)
+        if (response.status === 401) {
+        this.showLogin = true
+      }
+      return data
+      }
+      // if user is not logged in, show login / signup page
+      if (!window.localStorage.getItem('pocketbase_auth')) {
+        this.showLogin = true
+        return
+      }
+      // resume session
+      const auth = JSON.parse(window.localStorage.getItem('pocketbase_auth'))
+      this.pb.authStore.save(auth.token, auth.model)
+      // fetch todo lists
+      this.getLists()
+      // suscribe to live update events
+      this.subscribeToLists()
+    },
+    // login
+    async login () {
+      try {
+        const user = await this.pb.collection('users').authWithPassword(this.email, this.password)
+        this.getLists()
+        this.subscribeToLists()
+        this.showLogin = false
+        this.email = ''
+        this.password = ''
+      } catch (err) {
+        console.log(err)
+        this.loginMessage = err.data.message
+      }
+    },
+    // signup
+    async signup () {
+      try {
+        const user = await this.pb.collection('users').create({
+          email: this.email,
+          password: this.password,
+          passwordConfirm: this.passwordConfirm
+        })
+        this.email = ''
+        this.password = ''
+        this.passwordConfirm = ''
+        this.signupMessage = 'Success! Please, login.'
+      } catch (err) {
+        console.log(err)
+        this.signupMessage = err.data.message
+        if (err.data.data.email) this.signupMessage += ` Email: ${err.data.data.email.message}`
+        if (err.data.data.password) this.signupMessage += ` Password: ${err.data.data.password.message}`
+        if (err.data.data.passwordConfirm) this.signupMessage += ` Password Confirm: ${err.data.data.passwordConfirm.message}`
+      }
+    },
+    // logout
+    async logout () {
+      this.pb.authStore.clear()
+      this.showLogin = true
+    },
+    // lists functions
+    async subscribeToLists () {
+      this.pb.collection('lists').subscribe('*', e => {
+        if (e.action === 'create') this.lists.push(e.record)
+        else if (e.action === 'delete') {
+        this.lists = this.lists.filter(l => l.id !== e.record.id)
+        }
+      })
+    },
+    async getLists () {
+      const { items } = await this.pb.collection('lists').getList(1, 50,{sort: '-created', filter: `userID = '${this.pb.authStore.baseModel.id}'`})
+      this.lists = items
+      console.log(this.lists)
+    },
+    async createList () {
+      try {
+        const record = await this.pb.collection('lists').create({
+          name: this.newListName,
+          userID: this.pb.authStore.baseModel.id
+        })
+        this.newListName = ''
+      } catch (err) {
+        console.log('ERR', err)
+      }
+    },
+    async deleteList (list) {
+      try {
+        await this.pb.collection('lists').delete(list.id)
+        } catch (err) {
+        console.log('ERR', err)
+        }
+    },
+    async selectList (list) {
+      try {
+        this.selectedList = list
+        console.log(this.selectedList)
+        this.items = await this.pb.collection('items').getList(1,50, {sort: '-created', filter: `list = '${list.id}'` })
+        this.items = this.items.items
+        // suscribe to live update events
+        this.pb.collection('items').subscribe('*', e => {
+          if (e.record.list !== list.id) return
+          if (e.action === 'create') this.items.push(e.record)
+          if (e.action === 'update') this.items = this.items.map(i => i.id === e.record.id ? e.record : i)
+          else if (e.action === 'delete') this.items = this.items.filter(i => i.id !== e.record.id)
+          })
+      } catch (err) {
+        console.log('ERR', err)
+      }
+    },
+    // items functions
+    async createItem () {
+      try {
+        await this.pb.collection('items').create({ 
+          text: this.newItem, 
+          list: this.selectedList.id 
+          })
+        this.newItem = ''
+      } catch (err) {
+        console.log('ERR', err)
+      }
+    },
+    async deleteItem (item) {
+      try {
+      await this.pb.collection('items').delete(item.id)
+      } catch (err) {
+      console.log('ERR', err)
+      }
+    },
+    async toggleDone (item, toggle) {
+      try {
+        await this.pb.collection('items').update(item.id, { done: toggle })
+      } catch (err) {
+        console.log('ERR', err)
+      }
+    }
+    }))
+  })
+
+
+section.wow.animate__fadeIn(style='--p: 2rem; --ta: center')
+
+  h2(style='--mb: 1rem;') About Our Team
+  p(style='font-size: 1.2rem; line-height: 1.5;') Our team of experienced developers and designers are dedicated to creating high-quality, user-friendly websites and applications. We believe in using the latest technologies and design trends to bring your vision to life. 
+    a.link-mdn(href="https://www.softr.io/tools/svg-wave-generator")
+    a(href="https://www.softr.io/tools/svg-wave-generator") We like using SVG waves.
+
+
+  div(x-data='{ open: false }')
+    button(@click='open = !open') Toggle Content
+    span(x-show='open')
+      | Content...
+
+//-const resultList = await pb.collection('team').getList(1, 50, {filter: 'created >= "2022-01-01 00:00:00"'});
+
+section.wow.animate__fadeIn(data-wow-duration='2s' style='--d: flex; --fd: column; --fd-md: row; --ta: center;')
+  - people =[{"name":"Alice","role":"Chief Designer","fact":"Alice has a strong background in business strategy and leadership."},{"name":"Bob","role":"Accounting and HR","fact":"Bob has extensive experience in technology and software development."},{"name":"Charlie","role":"Full Stack Developer","fact":"Charlie is an expert in software testing, design, and dev."},{"name":"Charlie II","role":"Full Stack Developer","fact":"Charlie is an expert in software testing, design, and dev."}]
+    each person, index in people
+      a(href='#card' + index, id='card' + index)
+        div(style='--fx: 1; --p: 1rem; --d: grid; --jc: center;')
+          figure(style='--maxw: 300px; --br: 5px; --bgc:var(--white); --of: hidden; --pos: relative; --pb: 7rem; --scale-hvr:105%; --levitate-hvr:5')
+            img(src='https://source.unsplash.com/random/30' + index + 'x500/?woman' style='--mb: -33%;')
+            img(src='https://assets.codepen.io/170881/wave.svg')
+            figcaption(style='--inset-bottom: 0px; --pos: absolute; --pt: none; --bgc:var(--white);')
+              div(style='--m: auto;')
+                a(href='#!')
+                  h5= person.name
+                  p(style='--ws:pre')= person.role
+                  //p(style='')= person.fact
+                ul(style='--d: flex; --jc:center; --p:none; gap: 0.8rem')
+                  a(href='#!')
+                    i.fa-brands.fa-facebook
+                  a(href='#!')
+                    i.fa-brands.fa-twitter
+                  a(href='#!')
+                    i.fa-brands.fa-linkedin
+
+section.catalog.wow.animate__fadeIn(
+      data-wow-duration='2s' 
+      style='--d: flex; --jc:center; --ta: center; --fd: column; --fd-md: column; --fw:wrap'
+      )
+
+  h1 Heading Level 1
+  h2 Heading Level 2
+  h3 Heading Level 3
+  h4 Heading Level 4
+  h5 Heading Level 5
+  h6 Heading Level 6
+  p  Not a Heading P
+  section
+    p 
+      | This is a paragraph of text. It can contain various inline elements such as 
+      strong bold 
+      | or 
+      em italic 
+      | text.
+      aside This is an aside, which typically contains related information but is separate from the main content.
+  hr 
+  br 
+  div
+    p This is another paragraph of text.
+    p It is contained within a div element.
+    ol(style='--d:inline-block')
+      li List item 1
+      li List item 2
+      li List item 3
+    ul(style='--d:inline-block')
+      li List item 1
+      li List item 2
+      li List item 3
+  img(src='https://source.unsplash.com/random/301x300/?example', alt='Example Image', style='--d:block; --m:auto')
+  a(href='https://www.example.com') This is a link
+
+             
+section.catalog.wow.animate__fadeIn(
+      data-wow-duration='2s' 
+      style='--d: flex; --jc:center; --fd: column; --fd-md: row; --fw:wrap'
+      )
+
+
+    - var n = 1;
+      while n <= 6 
+        article(style='--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5')
+          a(href='#')
+            figure(style='--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;')
+              img(src='/assets/images/GIeyjWd.jpg' alt='Hotel Photo')
+              figcaption(style='--pt: none; --bgc:#F3F4F5;')
+                head
+                  h4
+                  | Adobe Photoshop CC 2022
+                p= n++ 
+                  h5(style='--d:inline') $850
+                  h6(style='--d:inline') /night         
+
+                  button(style=' --ft:right; --mr:0')
+                    i.fa-solid.fa-cart-plus  
+                    |  Add to cart
+
+
+section.container(style='padding: 2rem; text-align: center;')
+  h2(style='margin-bottom: 1rem;') Our Services
+  ul(style='list-style: none; text-align: left;')
+    li(style='margin-bottom: 0.5rem;') Website Design and Development
+    li(style='margin-bottom: 0.5rem;') Mobile App Development
+    li(style='margin-bottom: 0.5rem;') E-commerce Solutions
+    li(style='margin-bottom: 0.5rem;') Search Engine Optimization
+
+section.container(style='padding: 2rem; text-align: center;')
+  h2(style='margin-bottom: 1rem;') Our Process
+  p(style='font-size: 1.2rem; line-height: 1.5;') We follow a comprehensive process to ensure that every project is a success. Our process includes:
+  ol(style='text-align: left;')
+    li Discovery and Planning
+    li Design and Development
+    li Testing and Quality Assurance
+    li Deployment and Maintenance
+
+section.container(style='padding: 2rem; text-align: center;')
+  h2(style='margin-bottom: 1rem;') Contact Us
+  p(style='font-size: 1.2rem; line-height: 1.5;') If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.
+  a.button(href='#' style='padding: 1rem 2rem; background-color: #4CAF50; color: white; text-decoration: none;') Get in Touch
+
+section.container(style='--p: 2rem; --ta: center;')
+  h2(style='--mb: 1rem;') Contact Us
+  p(style='font-size: 1.2rem; line-height: 1.5;') If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.
+  a.button(href='#' style='--p: 1rem 2rem;') Get in Touch

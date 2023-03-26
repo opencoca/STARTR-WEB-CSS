@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Startr - Less Flex cards</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css'>
+  <link rel="stylesheet" href="./style.css">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+
+</head>
+
+<body>
+  <header><img src="https://source.unsplash.com/random/901x200/?example" alt="Example Image" style=" --w:100% "/></header><script src="//unpkg.com/alpinejs" defer=""></script><div class="container" x-data="lists" style="--m:1em"><nav><ul><li><h1 @click="selectedList = null" style="margin:0; text-align: center; cursor: pointer">ToDoo</h1></li><li><i class="bx bx-log-out bx-md" x-show="!showLogin" @click="logout()" style="cursor: pointer"></i></li></ul></nav><!-- login / signup--><article class="wow animate__fadeIn" x-show="showLogin"><h2>Login</h2><form><label for="email">Email</label><input id="email" x-model="email" type="email" autocomplete="username" placeholder="Email address"/><label for="password">Password</label><input id="password" x-model="password" type="password" autocomplete="current-password" placeholder="Password"/><button class="contrast outline" @click="login()" type="button">Login</button><mark x-show="loginMessage" x-text="loginMessage"></mark><hr style="margin: 4rem;"/></form><h2>Signup</h2><form><label for="email">Email</label><input id="signup_email" x-model="email" type="email" autocomplete="username" placeholder="Email address"/><label for="password">Password</label><input id="signup_password" x-model="password" type="password" placeholder="Password" autocomplete="new-password"/><label for="passwordConfirm">Confirm Password</label><input id="signup_passwordConfirm" x-model="passwordConfirm" type="password" placeholder="Confirm Password" autocomplete="new-password"/><button class="contrast outline" @click="signup()" type="button">Signup</button><mark x-show="signupMessage" x-text="signupMessage"></mark></form></article><!-- show lists--><article class="wow animate__fadeIn" x-show="!showLogin &amp;&amp; !selectedList" x-transition=""><h2>Your Lists</h2><template x-for="list in lists"><div style="display:flex; justify-content: space-between; margin-top: 1rem"><u><strong x-text="list.name" @click="selectList(list)" style="cursor: pointer;"></strong></u><i class="bx bx-trash bx-sm" @click="deleteList(list)" style="text-align: end; cursor: pointer"></i></div></template><hr style="margin: 2rem"/><label for="newList">Create New List</label><input id="newList" x-model="newListName" type="newList" placeholder="List Name" @keyup.enter="createList"/><button class="contrast outline" @click="createList">Create</button></article><!-- show selectedList items--><article class="wow animate__fadeIn" x-show="!showLogin &amp;&amp; selectedList" x-transition=""><h2 x-text="selectedList.name">Test</h2><template x-for="item in items"><div style="display:flex; justify-content: space-between; margin-top: 1rem" x-show="item.text"><label for="check"><input id="check" x-model="item.done" @change="e =&gt; toggleDone(item, e.target.checked)" type="checkbox"/><strong x-text="item.text"></strong></label><i class="bx bx-trash bx-sm" @click="deleteItem(item)" style="text-align: end; cursor: pointer"></i></div></template><hr style="margin: 2rem"/><label for="newItem">Create New Item</label><input id="newItem" x-model="newItem" type="newItem" placeholder="What do you want to ToDoo?" @keyup.enter="createItem"/><button class="contrast outline" @click="createItem">Create</button><hr style="margin: 1rem;"/><button class="primary outline" @click="selectedList = null">Back</button></article></div><script>document.addEventListener('alpine:init', () => {
+Alpine.data('lists', () => ({
+  // pocketbase client
+  client: null,
+  // login / signup
+  showLogin: false,
+  email: null,
+  password: null,
+  passwordConfirm: null,
+  loginMessage: null,
+  signupMessage: null,
+  // lists data
+  lists: [],
+  newListName: '',
+  selectedList: false,
+  // items data
+  items: null,
+  newItem: null,
+  async init () {
+  // initialize pocketbase
+    this.pb = new PocketBase('http://localhost:8090/');
+    // capture invalid token
+    this.pb.afterSend = function (response, data) {
+      console.log(response)
+      if (response.status === 401) {
+      this.showLogin = true
+    }
+    return data
+    }
+    // if user is not logged in, show login / signup page
+    if (!window.localStorage.getItem('pocketbase_auth')) {
+      this.showLogin = true
+      return
+    }
+    // resume session
+    const auth = JSON.parse(window.localStorage.getItem('pocketbase_auth'))
+    this.pb.authStore.save(auth.token, auth.model)
+    // fetch todo lists
+    this.getLists()
+    // suscribe to live update events
+    this.subscribeToLists()
+  },
+  // login
+  async login () {
+    try {
+      const user = await this.pb.collection('users').authWithPassword(this.email, this.password)
+      this.getLists()
+      this.subscribeToLists()
+      this.showLogin = false
+      this.email = ''
+      this.password = ''
+    } catch (err) {
+      console.log(err)
+      this.loginMessage = err.data.message
+    }
+  },
+  // signup
+  async signup () {
+    try {
+      const user = await this.pb.collection('users').create({
+        email: this.email,
+        password: this.password,
+        passwordConfirm: this.passwordConfirm
+      })
+      this.email = ''
+      this.password = ''
+      this.passwordConfirm = ''
+      this.signupMessage = 'Success! Please, login.'
+    } catch (err) {
+      console.log(err)
+      this.signupMessage = err.data.message
+      if (err.data.data.email) this.signupMessage += ` Email: ${err.data.data.email.message}`
+      if (err.data.data.password) this.signupMessage += ` Password: ${err.data.data.password.message}`
+      if (err.data.data.passwordConfirm) this.signupMessage += ` Password Confirm: ${err.data.data.passwordConfirm.message}`
+    }
+  },
+  // logout
+  async logout () {
+    this.pb.authStore.clear()
+    this.showLogin = true
+  },
+  // lists functions
+  async subscribeToLists () {
+    this.pb.collection('lists').subscribe('*', e => {
+      if (e.action === 'create') this.lists.push(e.record)
+      else if (e.action === 'delete') {
+      this.lists = this.lists.filter(l => l.id !== e.record.id)
+      }
+    })
+  },
+  async getLists () {
+    const { items } = await this.pb.collection('lists').getList(1, 50,{sort: '-created', filter: `userID = '${this.pb.authStore.baseModel.id}'`})
+    this.lists = items
+    console.log(this.lists)
+  },
+  async createList () {
+    try {
+      const record = await this.pb.collection('lists').create({
+        name: this.newListName,
+        userID: this.pb.authStore.baseModel.id
+      })
+      this.newListName = ''
+    } catch (err) {
+      console.log('ERR', err)
+    }
+  },
+  async deleteList (list) {
+    try {
+      await this.pb.collection('lists').delete(list.id)
+      } catch (err) {
+      console.log('ERR', err)
+      }
+  },
+  async selectList (list) {
+    try {
+      this.selectedList = list
+      console.log(this.selectedList)
+      this.items = await this.pb.collection('items').getList(1,50, {sort: '-created', filter: `list = '${list.id}'` })
+      this.items = this.items.items
+      // suscribe to live update events
+      this.pb.collection('items').subscribe('*', e => {
+        if (e.record.list !== list.id) return
+        if (e.action === 'create') this.items.push(e.record)
+        if (e.action === 'update') this.items = this.items.map(i => i.id === e.record.id ? e.record : i)
+        else if (e.action === 'delete') this.items = this.items.filter(i => i.id !== e.record.id)
+        })
+    } catch (err) {
+      console.log('ERR', err)
+    }
+  },
+  // items functions
+  async createItem () {
+    try {
+      await this.pb.collection('items').create({ 
+        text: this.newItem, 
+        list: this.selectedList.id 
+        })
+      this.newItem = ''
+    } catch (err) {
+      console.log('ERR', err)
+    }
+  },
+  async deleteItem (item) {
+    try {
+    await this.pb.collection('items').delete(item.id)
+    } catch (err) {
+    console.log('ERR', err)
+    }
+  },
+  async toggleDone (item, toggle) {
+    try {
+      await this.pb.collection('items').update(item.id, { done: toggle })
+    } catch (err) {
+      console.log('ERR', err)
+    }
+  }
+  }))
+})
+
+</script><section class="wow animate__fadeIn" style="--p: 2rem; --ta: center"><h2 style="--mb: 1rem;">About Our Team</h2><p style="font-size: 1.2rem; line-height: 1.5;">Our team of experienced developers and designers are dedicated to creating high-quality, user-friendly websites and applications. We believe in using the latest technologies and design trends to bring your vision to life. <a class="link-mdn" href="https://www.softr.io/tools/svg-wave-generator"></a><a href="https://www.softr.io/tools/svg-wave-generator">We like using SVG waves.</a></p><div x-data="{ open: false }"><button @click="open = !open">Toggle Content</button><span x-show="open">Content...</span></div></section><section class="wow animate__fadeIn" data-wow-duration="2s" style="--d: flex; --fd: column; --fd-md: row; --ta: center;"><a href="#card0" id="card0"><div style="--fx: 1; --p: 1rem; --d: grid; --jc: center;"><figure style="--maxw: 300px; --br: 5px; --bgc:var(--white); --of: hidden; --pos: relative; --pb: 7rem; --scale-hvr:105%; --levitate-hvr:5"><img src="https://source.unsplash.com/random/300x500/?woman" style="--mb: -33%;"/><img src="https://assets.codepen.io/170881/wave.svg"/><figcaption style="--inset-bottom: 0px; --pos: absolute; --pt: none; --bgc:var(--white);"><div style="--m: auto;"><a href="#!"><h5>Alice</h5><p style="--ws:pre">Chief Designer</p><!--p(style='')= person.fact--></a><ul style="--d: flex; --jc:center; --p:none; gap: 0.8rem"><a href="#!"><i class="fa-brands fa-facebook"></i></a><a href="#!"><i class="fa-brands fa-twitter"></i></a><a href="#!"><i class="fa-brands fa-linkedin"></i></a></ul></div></figcaption></figure></div></a><a href="#card1" id="card1"><div style="--fx: 1; --p: 1rem; --d: grid; --jc: center;"><figure style="--maxw: 300px; --br: 5px; --bgc:var(--white); --of: hidden; --pos: relative; --pb: 7rem; --scale-hvr:105%; --levitate-hvr:5"><img src="https://source.unsplash.com/random/301x500/?woman" style="--mb: -33%;"/><img src="https://assets.codepen.io/170881/wave.svg"/><figcaption style="--inset-bottom: 0px; --pos: absolute; --pt: none; --bgc:var(--white);"><div style="--m: auto;"><a href="#!"><h5>Bob</h5><p style="--ws:pre">Accounting and HR</p><!--p(style='')= person.fact--></a><ul style="--d: flex; --jc:center; --p:none; gap: 0.8rem"><a href="#!"><i class="fa-brands fa-facebook"></i></a><a href="#!"><i class="fa-brands fa-twitter"></i></a><a href="#!"><i class="fa-brands fa-linkedin"></i></a></ul></div></figcaption></figure></div></a><a href="#card2" id="card2"><div style="--fx: 1; --p: 1rem; --d: grid; --jc: center;"><figure style="--maxw: 300px; --br: 5px; --bgc:var(--white); --of: hidden; --pos: relative; --pb: 7rem; --scale-hvr:105%; --levitate-hvr:5"><img src="https://source.unsplash.com/random/302x500/?woman" style="--mb: -33%;"/><img src="https://assets.codepen.io/170881/wave.svg"/><figcaption style="--inset-bottom: 0px; --pos: absolute; --pt: none; --bgc:var(--white);"><div style="--m: auto;"><a href="#!"><h5>Charlie</h5><p style="--ws:pre">Full Stack Developer</p><!--p(style='')= person.fact--></a><ul style="--d: flex; --jc:center; --p:none; gap: 0.8rem"><a href="#!"><i class="fa-brands fa-facebook"></i></a><a href="#!"><i class="fa-brands fa-twitter"></i></a><a href="#!"><i class="fa-brands fa-linkedin"></i></a></ul></div></figcaption></figure></div></a><a href="#card3" id="card3"><div style="--fx: 1; --p: 1rem; --d: grid; --jc: center;"><figure style="--maxw: 300px; --br: 5px; --bgc:var(--white); --of: hidden; --pos: relative; --pb: 7rem; --scale-hvr:105%; --levitate-hvr:5"><img src="https://source.unsplash.com/random/303x500/?woman" style="--mb: -33%;"/><img src="https://assets.codepen.io/170881/wave.svg"/><figcaption style="--inset-bottom: 0px; --pos: absolute; --pt: none; --bgc:var(--white);"><div style="--m: auto;"><a href="#!"><h5>Charlie II</h5><p style="--ws:pre">Full Stack Developer</p><!--p(style='')= person.fact--></a><ul style="--d: flex; --jc:center; --p:none; gap: 0.8rem"><a href="#!"><i class="fa-brands fa-facebook"></i></a><a href="#!"><i class="fa-brands fa-twitter"></i></a><a href="#!"><i class="fa-brands fa-linkedin"></i></a></ul></div></figcaption></figure></div></a></section><section class="catalog wow animate__fadeIn" data-wow-duration="2s" style="--d: flex; --jc:center; --ta: center; --fd: column; --fd-md: column; --fw:wrap"><h1>Heading Level 1</h1><h2>Heading Level 2</h2><h3>Heading Level 3</h3><h4>Heading Level 4</h4><h5>Heading Level 5</h5><h6>Heading Level 6</h6><p> Not a Heading P</p><section><p> This is a paragraph of text. It can contain various inline elements such as <strong>bold </strong>or <em>italic </em>text.<aside>This is an aside, which typically contains related information but is separate from the main content.</aside></p></section><hr/><br/><div><p>This is another paragraph of text.</p><p>It is contained within a div element.</p><ol style="--d:inline-block"><li>List item 1</li><li>List item 2</li><li>List item 3</li></ol><ul style="--d:inline-block"><li>List item 1</li><li>List item 2</li><li>List item 3</li></ul></div><img src="https://source.unsplash.com/random/301x300/?example" alt="Example Image" style="--d:block; --m:auto"/><a href="https://www.example.com">This is a link</a></section><section class="catalog wow animate__fadeIn" data-wow-duration="2s" style="--d: flex; --jc:center; --fd: column; --fd-md: row; --fw:wrap"><article style="--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5"><a href="#"><figure style="--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;"><img src="/assets/images/GIeyjWd.jpg" alt="Hotel Photo"/><figcaption style="--pt: none; --bgc:#F3F4F5;"><head><h4></h4>Adobe Photoshop CC 2022</head><p>1<h5 style="--d:inline">$850</h5><h6 style="--d:inline">/night         </h6><button style=" --ft:right; --mr:0"><i class="fa-solid fa-cart-plus"> </i> Add to cart</button></p></figcaption></figure></a></article><article style="--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5"><a href="#"><figure style="--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;"><img src="/assets/images/GIeyjWd.jpg" alt="Hotel Photo"/><figcaption style="--pt: none; --bgc:#F3F4F5;"><head><h4></h4>Adobe Photoshop CC 2022</head><p>2<h5 style="--d:inline">$850</h5><h6 style="--d:inline">/night         </h6><button style=" --ft:right; --mr:0"><i class="fa-solid fa-cart-plus"> </i> Add to cart</button></p></figcaption></figure></a></article><article style="--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5"><a href="#"><figure style="--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;"><img src="/assets/images/GIeyjWd.jpg" alt="Hotel Photo"/><figcaption style="--pt: none; --bgc:#F3F4F5;"><head><h4></h4>Adobe Photoshop CC 2022</head><p>3<h5 style="--d:inline">$850</h5><h6 style="--d:inline">/night         </h6><button style=" --ft:right; --mr:0"><i class="fa-solid fa-cart-plus"> </i> Add to cart</button></p></figcaption></figure></a></article><article style="--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5"><a href="#"><figure style="--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;"><img src="/assets/images/GIeyjWd.jpg" alt="Hotel Photo"/><figcaption style="--pt: none; --bgc:#F3F4F5;"><head><h4></h4>Adobe Photoshop CC 2022</head><p>4<h5 style="--d:inline">$850</h5><h6 style="--d:inline">/night         </h6><button style=" --ft:right; --mr:0"><i class="fa-solid fa-cart-plus"> </i> Add to cart</button></p></figcaption></figure></a></article><article style="--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5"><a href="#"><figure style="--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;"><img src="/assets/images/GIeyjWd.jpg" alt="Hotel Photo"/><figcaption style="--pt: none; --bgc:#F3F4F5;"><head><h4></h4>Adobe Photoshop CC 2022</head><p>5<h5 style="--d:inline">$850</h5><h6 style="--d:inline">/night         </h6><button style=" --ft:right; --mr:0"><i class="fa-solid fa-cart-plus"> </i> Add to cart</button></p></figcaption></figure></a></article><article style="--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5"><a href="#"><figure style="--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;"><img src="/assets/images/GIeyjWd.jpg" alt="Hotel Photo"/><figcaption style="--pt: none; --bgc:#F3F4F5;"><head><h4></h4>Adobe Photoshop CC 2022</head><p>6<h5 style="--d:inline">$850</h5><h6 style="--d:inline">/night         </h6><button style=" --ft:right; --mr:0"><i class="fa-solid fa-cart-plus"> </i> Add to cart</button></p></figcaption></figure></a></article></section><section class="container" style="padding: 2rem; text-align: center;"><h2 style="margin-bottom: 1rem;">Our Services</h2><ul style="list-style: none; text-align: left;"><li style="margin-bottom: 0.5rem;">Website Design and Development</li><li style="margin-bottom: 0.5rem;">Mobile App Development</li><li style="margin-bottom: 0.5rem;">E-commerce Solutions</li><li style="margin-bottom: 0.5rem;">Search Engine Optimization</li></ul></section><section class="container" style="padding: 2rem; text-align: center;"><h2 style="margin-bottom: 1rem;">Our Process</h2><p style="font-size: 1.2rem; line-height: 1.5;">We follow a comprehensive process to ensure that every project is a success. Our process includes:</p><ol style="text-align: left;"><li>Discovery and Planning</li><li>Design and Development</li><li>Testing and Quality Assurance</li><li>Deployment and Maintenance</li></ol></section><section class="container" style="padding: 2rem; text-align: center;"><h2 style="margin-bottom: 1rem;">Contact Us</h2><p style="font-size: 1.2rem; line-height: 1.5;">If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.</p><a class="button" href="#" style="padding: 1rem 2rem; background-color: #4CAF50; color: white; text-decoration: none;">Get in Touch</a></section><section class="container" style="--p: 2rem; --ta: center;"><h2 style="--mb: 1rem;">Contact Us</h2><p style="font-size: 1.2rem; line-height: 1.5;">If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.</p><a class="button" href="#" style="--p: 1rem 2rem;">Get in Touch</a></section>
+  <script src="/js/vendor/pocketbase.umd.js"></script>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/wow/1.1.2/wow.min.js'></script>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/scrollReveal.js/4.0.9/scrollreveal.min.js'></script>
+  <script src="./script.js"></script>
+
+</body>
+
+</html>
