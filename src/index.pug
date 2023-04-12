@@ -220,7 +220,6 @@ script.
     }))
   })
 
-
 section.wow.animate__fadeIn(style='--p: 2rem; --ta: center')
 
   h2(style='--mb: 1rem;') About Our Team
@@ -231,12 +230,12 @@ section.wow.animate__fadeIn(style='--p: 2rem; --ta: center')
 
   div(x-data='{ open: false }')
     button(@click='open = !open') Toggle Content
-    span(x-show='open')
-      | Content...
+    div(x-show='open')
+      p Content...
+      p Some more content...
+      p Even more content...
 
-//-const resultList = await pb.collection('team').getList(1, 50, {filter: 'created >= "2022-01-01 00:00:00"'});
-
-section.wow.animate__fadeIn(data-wow-duration='2s' style='--d: flex; --fd: column; --fd-md: row; --ta: center;')
+section.team.wow.animate__fadeIn(data-wow-duration='2s' style='--d: flex; --fd: column; --fd-md: row; --ta: center;')
   - people =[{"name":"Alice","role":"Chief Designer","fact":"Alice has a strong background in business strategy and leadership."},{"name":"Bob","role":"Accounting and HR","fact":"Bob has extensive experience in technology and software development."},{"name":"Charlie","role":"Full Stack Developer","fact":"Charlie is an expert in software testing, design, and dev."},{"name":"Charlie II","role":"Full Stack Developer","fact":"Charlie is an expert in software testing, design, and dev."}]
     each person, index in people
       a(href='#card' + index, id='card' + index)
@@ -257,13 +256,62 @@ section.wow.animate__fadeIn(data-wow-duration='2s' style='--d: flex; --fd: colum
                     i.fa-brands.fa-twitter
                   a(href='#!')
                     i.fa-brands.fa-linkedin
+           
+section.catalog.wow.animate__fadeIn(
+      data-wow-duration='2s' 
+      style='--d: flex; jc:center; --fd: column; --fd-md: row; --fw:wrap'
+      )
+
+    - var n = 1;
+      while n <= 6 
+        article(style='--fx: 1; --p: 1rem; --d: grid; --jc: center;')
+          a(href='#')
+            figure(style='--w: 300px; --br: 5px; --of: hidden; --pos: relative; --mb: 2rem; --scale-hvr:105%; --levitate-hvr:5')
+              img(src='https://source.unsplash.com/random/300x20' + n + '/?hotel' alt='Hotel Photo')
+              figcaption(style='--pt: none; --bgc:#F3F4F5;')
+                head
+                  h3 Hotel
+                p= n++ 
+                  h5(style='--d:inline') $850
+                  h6(style='--d:inline') /night         
+
+                  button(style=' --ft:right; --mr:0')
+                    i.fa-solid.fa-cart-plus  
+                    |  Add to cart
+
+section.container(style='padding: 2rem; text-align: center;')
+  h2(style='margin-bottom: 1rem;') Our Services
+  ul(style='list-style: none; text-align: left;')
+    li(style='margin-bottom: 0.5rem;') Website Design and Development
+    li(style='margin-bottom: 0.5rem;') Mobile App Development
+    li(style='margin-bottom: 0.5rem;') E-commerce Solutions
+    li(style='margin-bottom: 0.5rem;') Search Engine Optimization
+
+section.container(style='padding: 2rem; text-align: center;')
+  h2(style='margin-bottom: 1rem;') Our Process
+  p(style='font-size: 1.2rem; line-height: 1.5;') We follow a comprehensive process to ensure that every project is a success. Our process includes:
+  ol(style='text-align: left;')
+    li Discovery and Planning
+    li Design and Development
+    li Testing and Quality Assurance
+    li Deployment and Maintenance
+
+section.container(style='padding: 2rem; text-align: center;')
+  h2(style='margin-bottom: 1rem;') Contact Us
+  p(style='font-size: 1.2rem; line-height: 1.5;') If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.
+  a.button(href='#' style='padding: 1rem 2rem; background-color: #4CAF50; color: white; text-decoration: none;') Get in Touch
+
+section.container(style='--p: 2rem; --ta: center;')
+  h2(style='--mb: 1rem;') Contact Us
+  p(style='font-size: 1.2rem; line-height: 1.5;') If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.
+  a.button(href='#' style='--p: 1rem 2rem;') Get in Touch
 
 section.catalog.wow.animate__fadeIn(
       data-wow-duration='2s' 
       style='--d: flex; --jc:center; --ta: center; --fd: column; --fd-md: column; --fw:wrap'
       )
 
-  h1 Heading Level 1
+  h1 Basic HTML Elements
   h2 Heading Level 2
   h3 Heading Level 3
   h4 Heading Level 4
@@ -293,56 +341,3 @@ section.catalog.wow.animate__fadeIn(
       li List item 3
   img(src='https://source.unsplash.com/random/301x300/?example', alt='Example Image', style='--d:block; --m:auto')
   a(href='https://www.example.com') This is a link
-
-             
-section.catalog.wow.animate__fadeIn(
-      data-wow-duration='2s' 
-      style='--d: flex; --jc:center; --fd: column; --fd-md: row; --fw:wrap'
-      )
-
-
-    - var n = 1;
-      while n <= 6 
-        article(style='--br: 5px; --d: grid; --of: hidden; --m: 1rem;  --jc: center; --scale-hvr:105%; --levitate-hvr:5')
-          a(href='#')
-            figure(style='--maxw: 300px; --br: 5px; --of: hidden; --pos: relative;')
-              img(src='/assets/images/GIeyjWd.jpg' alt='Hotel Photo')
-              figcaption(style='--pt: none; --bgc:#F3F4F5;')
-                head
-                  h4
-                  | Adobe Photoshop CC 2022
-                p= n++ 
-                  h5(style='--d:inline') $850
-                  h6(style='--d:inline') /night         
-
-                  button(style=' --ft:right; --mr:0')
-                    i.fa-solid.fa-cart-plus  
-                    |  Add to cart
-
-
-section.container(style='padding: 2rem; text-align: center;')
-  h2(style='margin-bottom: 1rem;') Our Services
-  ul(style='list-style: none; text-align: left;')
-    li(style='margin-bottom: 0.5rem;') Website Design and Development
-    li(style='margin-bottom: 0.5rem;') Mobile App Development
-    li(style='margin-bottom: 0.5rem;') E-commerce Solutions
-    li(style='margin-bottom: 0.5rem;') Search Engine Optimization
-
-section.container(style='padding: 2rem; text-align: center;')
-  h2(style='margin-bottom: 1rem;') Our Process
-  p(style='font-size: 1.2rem; line-height: 1.5;') We follow a comprehensive process to ensure that every project is a success. Our process includes:
-  ol(style='text-align: left;')
-    li Discovery and Planning
-    li Design and Development
-    li Testing and Quality Assurance
-    li Deployment and Maintenance
-
-section.container(style='padding: 2rem; text-align: center;')
-  h2(style='margin-bottom: 1rem;') Contact Us
-  p(style='font-size: 1.2rem; line-height: 1.5;') If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.
-  a.button(href='#' style='padding: 1rem 2rem; background-color: #4CAF50; color: white; text-decoration: none;') Get in Touch
-
-section.container(style='--p: 2rem; --ta: center;')
-  h2(style='--mb: 1rem;') Contact Us
-  p(style='font-size: 1.2rem; line-height: 1.5;') If you're interested in working with us, please feel free to get in touch. We'd love to hear about your project and see how we can help.
-  a.button(href='#' style='--p: 1rem 2rem;') Get in Touch

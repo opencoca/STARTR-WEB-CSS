@@ -46,8 +46,12 @@ Start the server
 ```
 yarn serve
 ```
+This will start BrowserSync on port 3000 and the BrowserSync admin panel on port 3001
 
-To start the Pocketbase server, open a new terminal window and run
+Pocketbase
+------------------------
+
+    To start the Pocketbase server, open a new terminal window and run:
 
 ``` 
 mv node_modules node_modules~ && ./pocketbase serve && mv node_modules~ node_modules
